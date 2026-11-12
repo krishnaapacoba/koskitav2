@@ -29,7 +29,7 @@ Stack: HTML, CSS, JavaScript, PHP 8+ (PDO pgsql), PostgreSQL 12+.
 1. Landing page dapat dilihat tanpa login (nav hanya **Masuk** & **Daftar**). Kamar ditahan/terisi tampil abu-abu dan tidak bisa dipesan.
 2. Klik **Pesan** → wajib login/daftar. Setelah daftar, otomatis masuk dan kembali ke landing page (nav berubah: Kamar, Fasilitas, nama, Keluar).
 3. Pilih kamar → konfirmasi → kamar `ON_HOLD` → `onboarding.php` untuk unggah KTP/KK/Buku Nikah/lainnya (boleh lebih dari satu).
-4. Admin menyetujui/menolak di **Verifikasi**. Ditolak → email alasan + unggah ulang. Disetujui → email berisi tombol ke `first_payment.php`.
+4. Admin menyetujui/menolak di **Verifikasi**. Ditolak → email alasan + unggah ulang. Disetujui → email berisi QRIS pembayaran (gambar `kosan.qris_path`), nominal tagihan, dan tombol ke `first_payment.php`.
 5. Pembayaran pertama memakai komponen yang sama dengan pembayaran bulanan (QRIS + bukti, atau Tunai dengan popup + OK).
 6. Admin memverifikasi di **Pembayaran** → status `GUEST` menjadi `TENANT`, kamar `OCCUPIED`, email konfirmasi; kredensial yang sama kini membuka dashboard penghuni.
 

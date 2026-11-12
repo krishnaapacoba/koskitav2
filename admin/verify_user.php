@@ -6,7 +6,9 @@ $u = checkRole(['ADMIN']); $db = db(); $arr = pgArr(adminKosanIds());
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $id = (int)($_POST['id_user'] ?? 0); $act = $_POST['action'] ?? '';
-    $s = $db->prepare("SELECT u.* FROM users u JOIN rooms r ON r.id_room=u.id_room WHERE u.id_user=? AND u.user_status='PENDING_VERIFICATION' AND r.id_kosan=ANY(CAST(? AS int[]))");
+    $s = $db->prepare("SELECT u.*, r.nomor_kamar, r.harga_per_bulan, k.nama_kos, k.qris_path
+        FROM users u JOIN rooms r ON r.id_room=u.id_room JOIN kosan k ON k.id_kosan=r.id_kosan
+        WHERE u.id_user=? AND u.user_status='PENDING_VERIFICATION' AND r.id_kosan=ANY(CAST(? AS int[]))");
     $s->execute([$id, $arr]); $cand = $s->fetch();
     $back = ($_POST['back'] ?? '') === 'dashboard' ? 'admin/dashboard.php' : 'admin/verify_user.php';
     if (!$cand) { flash('error', 'Data tidak ditemukan atau sudah diproses.'); redirect($back); }
@@ -15,8 +17,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $db->prepare("UPDATE user_documents SET status='APPROVED',catatan=NULL WHERE id_user=? AND status='PENDING'")->execute([$id]);
         $db->prepare("UPDATE users SET user_status='PAYMENT_PENDING' WHERE id_user=?")->execute([$id]);
         $db->commit();
+        $qris = !empty($cand['qris_path'])
+            ? '<p style="margin:20px 0 8px"><b>QRIS pembayaran</b></p>'
+              . '<p style="margin:0 0 10px"><img src="' . e(absUrl($cand['qris_path'])) . '" alt="QRIS ' . e($cand['nama_kos']) . '" style="width:240px;max-width:100%;border:1px solid #e5e0d5;border-radius:12px;padding:8px;background:#fff"></p>'
+              . '<p>Scan QRIS di atas dan bayar sebesar <b>' . rupiah($cand['harga_per_bulan']) . '</b>, lalu unggah bukti pembayaran pada halaman pembayaran.</p>'
+            : '<p>QRIS pembayaran belum tersedia. Silakan hubungi pengelola atau pilih pembayaran tunai.</p>';
         sendMail($id, $cand['email'], 'Berkas disetujui — lakukan pembayaran pertama',
-            '<p>Halo ' . e($cand['nama_lengkap']) . ',</p><p>Berkas identitas Anda telah <b>disetujui</b>. Silakan lakukan pembayaran bulan pertama untuk mengaktifkan akun penghuni Anda.</p>',
+            '<p>Halo ' . e($cand['nama_lengkap']) . ',</p>'
+            . '<p>Berkas identitas Anda telah <b>disetujui</b>. Silakan lakukan pembayaran bulan pertama untuk mengaktifkan akun penghuni Anda.</p>'
+            . '<p>Kamar: <b>' . e($cand['nama_kos']) . ' · ' . e($cand['nomor_kamar']) . '</b><br>Tagihan bulan pertama: <b>' . rupiah($cand['harga_per_bulan']) . '</b></p>'
+            . $qris,
             ['Bayar sekarang', absUrl('first_payment.php')]);
         flash('success', 'Berkas disetujui. Email pembayaran dikirim ke calon penghuni.');
     } elseif ($act === 'reject') {
