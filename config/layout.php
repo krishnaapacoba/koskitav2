@@ -6,6 +6,7 @@ function page_head(string $title, string $bodyClass = ''): void { ?>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>"></head>
+<link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>?v=2"></head>
 <body class="<?= e($bodyClass) ?>">
 <?php }
 function page_foot(): void { echo '<script src="' . e(url('assets/js/app.js')) . '"></script></body></html>'; }
