@@ -4,7 +4,7 @@ define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
 define('DB_PORT', getenv('DB_PORT') ?: '5432');
 define('DB_NAME', getenv('DB_NAME') ?: 'koskitav2');
 define('DB_USER', getenv('DB_USER') ?: 'postgres');
-define('DB_PASS', getenv('DB_PASS') ?: '0708');
+define('DB_PASS', getenv('DB_PASS') ?: 'ksd');
 
 define('APP_DEBUG', true);                 // true: menu "Email" (kotak email simulasi) tampil
 define('MAIL_FROM', 'no-reply@koskita.local');

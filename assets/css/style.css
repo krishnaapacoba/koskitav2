@@ -77,12 +77,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
 
 /* app shell */
 .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-.sidebar{background:#fff;border-right:1px solid var(--line);padding:1.8rem 1rem;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+.sidebar{background:#fff;border-right:1px solid var(--line);padding:1.8rem 1rem .35rem;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
 .sidebar .brand{padding:0 .8rem;display:block}.role-label{padding:.2rem .8rem 0;color:var(--muted);font-size:.9rem}
-.sidebar nav{margin-top:1.1rem;display:flex;flex-direction:column;gap:.25rem;flex:1}
+.sidebar nav{margin-top:1.1rem;display:flex;flex-direction:column;gap:.25rem;flex:1;min-height:0;overflow-y:auto}
 .sidebar nav a{padding:.7rem .9rem;border-radius:12px;font-weight:500}.sidebar nav a:hover{background:#f5f3ee}.sidebar nav a.active{background:var(--soft);color:var(--teal-d);font-weight:700}
-.sidebar nav a[href*="logout"]{margin-top:auto;color:var(--red);font-weight:600;border-top:1px solid var(--line);padding-top:.85rem}
-.sidebar nav a[href*="logout"]:hover{background:var(--red-bg);color:var(--red)}
+.sidebar-logout{margin-top:auto;display:block;color:var(--red);font-weight:600;border-top:1px solid var(--line);padding:.85rem .9rem;border-radius:12px;flex-shrink:0}
+.sidebar-logout:hover{background:var(--red-bg);color:var(--red)}
 .app-main{padding:2.2rem 2.6rem 3rem;min-width:0}
 
 /* method & modal */
@@ -97,8 +97,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
 @media(max-width:900px){
  .g2,.g3,.g4,.filter,.auth-split,.method-grid{grid-template-columns:1fr}.g4{grid-template-columns:1fr 1fr}
  .auth-side{padding:1.5rem;gap:1.5rem}.auth-side h1{font-size:1.8rem}
- .app{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:1rem}
- .sidebar nav{flex-direction:row;overflow-x:auto}.sidebar nav a{white-space:nowrap}.app-main{padding:1.4rem 1rem}
+ .app{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:1rem 1rem .5rem}
+ .sidebar nav{flex-direction:row;overflow-x:auto}.sidebar nav a{white-space:nowrap}.sidebar-logout{margin-top:.75rem;padding:.7rem .9rem}.app-main{padding:1.4rem 1rem}
  .topbar{padding:.8rem 1rem}.hero h1{font-size:2rem}
 }
 @media print{.no-print{display:none!important}body{background:#fff}.receipt{border:0}}

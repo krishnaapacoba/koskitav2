@@ -59,6 +59,25 @@ $ts =$db->prepare('SELECT * FROM tickets WHERE id_user=? ORDER BY id_ticket DESC
 $ts->execute([$id]);
 $tickets =$ts->fetchAll();
 
+$progressByTicket = [];
+if ($tickets) {
+    $pst = $db->prepare('SELECT p.*, u.nama_lengkap, u.role FROM ticket_progress p
+        LEFT JOIN users u ON u.id_user = p.id_user
+        WHERE p.id_ticket=ANY(CAST(? AS int[]))
+        ORDER BY p.id_progress ASC');
+    $pst->execute([pgArr(array_map(fn($t) => (int)$t['id_ticket'], $tickets))]);
+    foreach ($pst->fetchAll() as $p) {
+        $progressByTicket[(int)$p['id_ticket']][] = $p;
+    }
+}
+
+$cntOpen = $cntProg = $cntRes = 0;
+foreach ($tickets as $t) {
+    if ($t['status'] === 'OPEN') $cntOpen++;
+    elseif ($t['status'] === 'IN_PROGRESS') $cntProg++;
+    else $cntRes++;
+}
+
 // Helper untuk memisahkan Judul & Fasilitas (termasuk kompatibilitas tiket lama)
 function parseTicketSubject(string $raw): array
 {
@@ -245,49 +264,156 @@ app_start('TENANT', 'ticket', 'Pengaduan', 'Laporkan kendala fasilitas kamar len
   }
   .tk-form-footer .btn { min-width: 210px; }
 
-  /* Tabel Riwayat Pengaduan Full-Width */
-  .tbl-wrap { width: 100%; overflow-x: auto; }
-  .clean-tbl { width: 100%; border-collapse: collapse; text-align: left; }
-  .clean-tbl thead th {
-    background: #F4F6F2;
-    color: #4A584B;
-    font-size: .8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    padding: .9rem 1.1rem;
-    border-bottom: 1.5px solid var(--line);
-    text-align: left;
-    white-space: nowrap;
+  /* Ringkasan status tiket */
+  .tk-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .9rem;
+    margin-bottom: 1.4rem;
   }
-  .clean-tbl thead th:first-child { border-top-left-radius: 12px; }
-  .clean-tbl thead th:last-child { border-top-right-radius: 12px; }
-  .clean-tbl tbody td {
-    padding: 1rem 1.1rem;
-    border-bottom: 1px solid var(--line);
-    vertical-align: middle;
-    font-size: .92rem;
-    color: var(--ink);
+  .tk-stat {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: .95rem 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: .8rem;
   }
-  .clean-tbl tbody tr:last-child td { border-bottom: 0; }
-  .clean-tbl tbody tr:hover td { background: #FAFBF9; }
+  .tk-stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .tk-stat b { display: block; font-size: 1.4rem; line-height: 1.1; }
+  .tk-stat span { font-size: .79rem; color: var(--muted); }
+  .tk-stat-total .tk-stat-icon { background: var(--soft); color: var(--teal); }
+  .tk-stat-open .tk-stat-icon { background: #fee2e2; color: #b91c1c; }
+  .tk-stat-prog .tk-stat-icon { background: var(--amber-bg); color: var(--amber); }
+  .tk-stat-res .tk-stat-icon { background: #dcfce7; color: #15803d; }
 
-  .col-date { width: 165px; white-space: nowrap; color: var(--muted); font-size: .86rem; }
-  .col-title { width: 20%; font-weight: 700; }
-  .col-fac { width: 20%; }
-  .fac-tags { display: flex; flex-wrap: wrap; gap: .35rem; }
+  /* Header form & eyebrow */
+  .tk-eyebrow {
+    display: inline-block;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--teal);
+    background: var(--soft);
+    padding: .22rem .6rem;
+    border-radius: 999px;
+    margin-bottom: .5rem;
+  }
+  .tk-card-head p { margin: .3rem 0 0; color: var(--muted); font-size: .88rem; }
+  .tk-head-row { display: flex; align-items: center; gap: 1rem; }
+
+  .tk-fac-section {
+    background: #FBFCFA;
+    border: 1px solid #EDF1EA;
+    border-radius: 14px;
+    padding: .9rem 1rem;
+  }
+  .tk-fac-section .field-lbl { margin-bottom: .6rem; }
+
+  /* Riwayat tiket berbentuk kartu */
+  .tk-history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .tk-history-head h3 { margin: 0 0 .2rem; font-size: 1.1rem; font-weight: 700; }
+  .tk-history-head p { margin: 0; }
+  .ticket-list { display: flex; flex-direction: column; gap: .9rem; }
+  .ticket-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 1.1rem 1.3rem 1.1rem 1.45rem;
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow .18s ease, transform .18s ease;
+  }
+  .ticket-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: #cbd5e1;
+  }
+  .ticket-card.st-OPEN::before { background: #ef4444; }
+  .ticket-card.st-IN_PROGRESS::before { background: #f59e0b; }
+  .ticket-card.st-RESOLVED::before { background: var(--teal); }
+  .ticket-card:hover { box-shadow: 0 8px 24px rgba(31, 41, 55, .07); transform: translateY(-1px); }
+
+  .ticket-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: .5rem;
+  }
+  .ticket-id { font-weight: 800; font-size: .82rem; letter-spacing: .02em; }
+  .ticket-date { font-size: .78rem; color: var(--muted); margin-left: .55rem; }
+  .ticket-title { margin: 0 0 .45rem; font-size: 1.02rem; font-weight: 700; color: var(--ink); }
+  .fac-tags { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .5rem; }
   .fac-pill {
     display: inline-block;
-    padding: .22rem .65rem;
+    padding: .22rem .68rem;
     border-radius: 999px;
-    font-size: .78rem;
+    font-size: .76rem;
     font-weight: 600;
     background: #EEF4ED;
     color: #3F5141;
   }
-  .col-desc { width: auto; color: #4A584B; line-height: 1.5; }
-  .col-proof { width: 115px; text-align: center; white-space: nowrap; }
-  .col-status { width: 125px; text-align: right; white-space: nowrap; }
+  .ticket-desc { margin: 0; color: #4A584B; font-size: .9rem; line-height: 1.55; }
+
+  .ticket-latest {
+    display: flex;
+    gap: .6rem;
+    align-items: flex-start;
+    background: #F7FAF8;
+    border: 1px dashed #D3E0D4;
+    border-radius: 12px;
+    padding: .65rem .85rem;
+    margin-top: .8rem;
+  }
+  .ticket-latest-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--teal);
+    margin-top: .38rem;
+    flex-shrink: 0;
+  }
+  .ticket-latest strong { font-size: .77rem; color: var(--teal-d); }
+  .ticket-latest p {
+    margin: .12rem 0 0;
+    font-size: .84rem;
+    color: #4A584B;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .ticket-latest time { font-size: .72rem; color: var(--muted); margin-left: .35rem; font-weight: 400; }
+
+  .ticket-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-top: .9rem;
+    padding-top: .85rem;
+    border-top: 1px solid #F0EDE5;
+  }
 
   /* Modal Pratinjau Foto Bukti */
   .proof-modal {
@@ -329,6 +455,38 @@ app_start('TENANT', 'ticket', 'Pengaduan', 'Laporkan kendala fasilitas kamar len
   .proof-modal-grid a { display: block; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
   .proof-modal-grid img { width: 100%; height: 220px; object-fit: cover; display: block; }
 
+  /* Timeline Progres Tiket */
+  .progress-timeline {
+    max-height: 65vh;
+    overflow-y: auto;
+    padding-right: .3rem;
+  }
+  .progress-item {
+    border-left: 3px solid var(--teal);
+    background: #FAFBF9;
+    border-radius: 0 10px 10px 0;
+    padding: .65rem .9rem;
+    margin-bottom: .6rem;
+  }
+  .progress-item:last-child { margin-bottom: 0; }
+  .progress-meta {
+    font-size: .74rem;
+    color: var(--muted);
+    margin-bottom: .25rem;
+  }
+  .progress-note {
+    font-size: .89rem;
+    color: var(--ink);
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .progress-empty {
+    color: var(--muted);
+    font-size: .88rem;
+    text-align: center;
+    padding: 1.25rem 0;
+  }
+
   .tk-empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted); }
   .tk-empty p { margin: 0; font-size: .94rem; font-weight: 500; }
 
@@ -337,14 +495,53 @@ app_start('TENANT', 'ticket', 'Pengaduan', 'Laporkan kendala fasilitas kamar len
     .tk-form-grid { grid-template-columns: 1fr; }
     .upload-zone { min-height: 160px; }
     .tk-form-footer .btn { width: 100%; }
+    .tk-stats { grid-template-columns: repeat(2, 1fr); }
+    .ticket-foot .btn { flex: 1; }
+  }
+  @media (max-width: 520px) {
+    .tk-stats { grid-template-columns: 1fr; }
+    .tk-history-head { align-items: flex-start; }
+    .ticket-card { padding: 1rem 1.1rem 1rem 1.25rem; }
   }
 </style>
 
-<!-- Card 1: Form Buat Tiket Baru -->
+<!-- Ringkasan Tiket -->
+<div class="tk-stats">
+  <div class="tk-stat tk-stat-total">
+    <div class="tk-stat-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V4z"></path><path d="M14 4v16"></path></svg>
+    </div>
+    <div><b><?= count($tickets) ?></b><span>Total tiket</span></div>
+  </div>
+  <div class="tk-stat tk-stat-open">
+    <div class="tk-stat-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>
+    </div>
+    <div><b><?= $cntOpen ?></b><span>Menunggu</span></div>
+  </div>
+  <div class="tk-stat tk-stat-prog">
+    <div class="tk-stat-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+    </div>
+    <div><b><?= $cntProg ?></b><span>Diproses</span></div>
+  </div>
+  <div class="tk-stat tk-stat-res">
+    <div class="tk-stat-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+    </div>
+    <div><b><?= $cntRes ?></b><span>Selesai</span></div>
+  </div>
+</div>
+
+<!-- Form Buat Tiket Baru -->
 <form class="tk-card" id="form" method="post" enctype="multipart/form-data">
   <?= csrf_field() ?>
   <div class="tk-card-head">
-    <h3>Buat Tiket Baru</h3>
+    <div class="tk-head-text">
+      <span class="tk-eyebrow">Laporkan kendala</span>
+      <h3>Buat Tiket Baru</h3>
+      <p>Ceritakan kendala yang Anda alami, tim pengelola akan menindaklanjuti secepatnya.</p>
+    </div>
   </div>
 
   <div class="tk-form-grid">
@@ -354,7 +551,7 @@ app_start('TENANT', 'ticket', 'Pengaduan', 'Laporkan kendala fasilitas kamar len
         <input type="text" name="subject" maxlength="120" placeholder="Contoh: AC tidak dingin atau keran bocor" required>
       </label>
 
-      <div>
+      <div class="tk-fac-section">
         <span class="field-lbl">Fasilitas yang bermasalah <small>(opsional, bisa pilih lebih dari satu)</small></span>
         <div class="fac-check-grid">
           <?php foreach ($roomFacs as $f): ?>
@@ -404,73 +601,95 @@ app_start('TENANT', 'ticket', 'Pengaduan', 'Laporkan kendala fasilitas kamar len
   </div>
 </form>
 
-<!-- Card 2: Riwayat Pengaduan Saya -->
-<div class="tk-card">
-  <div class="tk-card-head">
-    <h3>Pengaduan Saya</h3>
+<!-- Riwayat Pengaduan Saya -->
+<div class="tk-card" style="background:transparent;border:0;padding:0">
+  <div class="tk-history-head">
+    <div>
+      <h3>Pengaduan Saya</h3>
+      <p class="muted small">Pantau status dan progres penanganan setiap tiket Anda.</p>
+    </div>
     <span class="badge badge-gray"><?= count($tickets) ?> tiket</span>
   </div>
 
   <?php if ($tickets): ?>
-    <div class="tbl-wrap">
-      <table class="clean-tbl">
-        <thead>
-          <tr>
-            <th class="col-date">Tanggal</th>
-            <th class="col-title">Judul</th>
-            <th class="col-fac">Fasilitas</th>
-            <th class="col-desc">Rincian Kendala</th>
-            <th class="col-proof" style="text-align:center">Bukti</th>
-            <th class="col-status" style="text-align:right">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($tickets as $t):
-              $parsed = parseTicketSubject($t['subject']);
-              $ph = jsonList($t['ticket_proof_path']);
-              $photoUrls = [];
-              foreach ($ph as $i => $_) {
-                  $photoUrls[] = url('file.php?t=ticket&id=' . $t['id_ticket'] . '&i=' . $i);
-              }
-              $modalTitle = $parsed['title'] !== '-' ? $parsed['title'] : implode(', ', $parsed['facs']);
-          ?>
-            <tr>
-              <td class="col-date"><?= e(tgl($t['created_at'])) ?></td>
-              <td class="col-title"><?= e($parsed['title']) ?></td>
-              <td class="col-fac">
-                <?php if ($parsed['facs']): ?>
-                  <div class="fac-tags">
-                    <?php foreach ($parsed['facs'] as $fc): ?>
-                      <span class="fac-pill"><?= e($fc) ?></span>
-                    <?php endforeach; ?>
-                  </div>
-                <?php else: ?>
-                  <span class="muted small">-</span>
-                <?php endif; ?>
-              </td>
-              <td class="col-desc"><?= nl2br(e($t['description'])) ?></td>
-              <td class="col-proof">
-                <?php if ($photoUrls): ?>
-                  <button type="button"
-                          class="btn btn-outline btn-sm"
-                          data-title="<?= e($modalTitle) ?>"
-                          data-photos="<?= e(json_encode($photoUrls)) ?>"
-                          onclick="openProofModal(this)">
-                    Lihat (<?= count($photoUrls) ?>)
-                  </button>
-                <?php else: ?>
-                  <span class="muted small">-</span>
-                <?php endif; ?>
-              </td>
-              <td class="col-status"><?= statusBadge('ticket', $t['status']) ?></td>
-            </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
+    <div class="ticket-list">
+      <?php foreach ($tickets as $t):
+          $parsed = parseTicketSubject($t['subject']);
+          $ph = jsonList($t['ticket_proof_path']);
+          $photoUrls = [];
+          foreach ($ph as $i => $_) {
+              $photoUrls[] = url('file.php?t=ticket&id=' . $t['id_ticket'] . '&i=' . $i);
+          }
+          $modalTitle = $parsed['title'] !== '-' ? $parsed['title'] : implode(', ', $parsed['facs']);
+          $progRows = $progressByTicket[(int)$t['id_ticket']] ?? [];
+          $progData = [];
+          foreach ($progRows as $p) {
+              $progData[] = [
+                  'catatan' => $p['catatan'],
+                  'at'      => tgl($p['created_at']) . ' ' . date('H:i', strtotime($p['created_at'])),
+                  'by'      => $p['nama_lengkap'] ?: 'Admin',
+                  'role'    => $p['role'] === 'SUPERADMIN' ? 'Superadmin' : 'Admin',
+              ];
+          }
+          $latest = $progData ? $progData[count($progData) - 1] : null;
+          $displayTitle = $parsed['title'] !== '-' ? $parsed['title'] : 'Kendala fasilitas';
+      ?>
+        <article class="ticket-card st-<?= e($t['status']) ?>">
+          <div class="ticket-top">
+            <div>
+              <span class="ticket-id">#T-<?= str_pad((string)$t['id_ticket'], 3, '0', STR_PAD_LEFT) ?></span>
+              <span class="ticket-date"><?= e(tgl($t['created_at'])) ?></span>
+            </div>
+            <?= statusBadge('ticket', $t['status']) ?>
+          </div>
+
+          <h4 class="ticket-title"><?= e($displayTitle) ?></h4>
+
+          <?php if ($parsed['facs']): ?>
+            <div class="fac-tags">
+              <?php foreach ($parsed['facs'] as $fc): ?>
+                <span class="fac-pill"><?= e($fc) ?></span>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+
+          <p class="ticket-desc"><?= nl2br(e($t['description'])) ?></p>
+
+          <?php if ($latest): ?>
+            <div class="ticket-latest">
+              <span class="ticket-latest-dot"></span>
+              <div style="min-width:0">
+                <strong>Progres terbaru <time><?= e($latest['at']) ?></time></strong>
+                <p><?= e($latest['catatan']) ?></p>
+              </div>
+            </div>
+          <?php endif; ?>
+
+          <div class="ticket-foot">
+            <?php if ($photoUrls): ?>
+              <button type="button"
+                      class="btn btn-outline btn-sm"
+                      data-title="<?= e($modalTitle) ?>"
+                      data-photos="<?= e(json_encode($photoUrls)) ?>"
+                      onclick="openProofModal(this)">
+                Lihat Bukti (<?= count($photoUrls) ?>)
+              </button>
+            <?php endif; ?>
+            <button type="button"
+                    class="btn btn-outline btn-sm"
+                    data-label="#T-<?= str_pad((string)$t['id_ticket'], 3, '0', STR_PAD_LEFT) ?> · <?= e($modalTitle) ?>"
+                    data-progress="<?= e(json_encode($progData)) ?>"
+                    onclick="openProgressModal(this)">
+              Riwayat Progres (<?= count($progData) ?>)
+            </button>
+          </div>
+        </article>
+      <?php endforeach; ?>
     </div>
   <?php else: ?>
-    <div class="tk-empty">
+    <div class="tk-card tk-empty">
       <p>Belum ada pengaduan yang dikirim.</p>
+      <span class="muted small">Kendala yang Anda laporkan akan muncul di sini.</span>
     </div>
   <?php endif; ?>
 </div>
@@ -483,6 +702,17 @@ app_start('TENANT', 'ticket', 'Pengaduan', 'Laporkan kendala fasilitas kamar len
       <button type="button" class="btn btn-outline btn-sm" onclick="closeProofModal()">Tutup</button>
     </div>
     <div class="proof-modal-grid" id="proofModalGrid"></div>
+  </div>
+</div>
+
+<!-- Modal Riwayat Progres Tiket -->
+<div class="proof-modal" id="progressModal" onclick="if(event.target===this) closeProgressModal()">
+  <div class="proof-modal-box" style="max-width:620px">
+    <div class="proof-modal-head">
+      <h4 id="progressModalTitle">Progres Tiket</h4>
+      <button type="button" class="btn btn-outline btn-sm" onclick="closeProgressModal()">Tutup</button>
+    </div>
+    <div class="progress-timeline" id="progressTimeline"></div>
   </div>
 </div>
 
@@ -550,6 +780,46 @@ app_start('TENANT', 'ticket', 'Pengaduan', 'Laporkan kendala fasilitas kamar len
 
   function closeProofModal() {
     document.getElementById('proofModal').classList.remove('is-open');
+  }
+
+  function openProgressModal(btn) {
+    const label = btn.getAttribute('data-label') || 'Tiket';
+    const items = JSON.parse(btn.getAttribute('data-progress') || '[]');
+
+    document.getElementById('progressModalTitle').textContent = 'Progres ' + label;
+
+    const tl = document.getElementById('progressTimeline');
+    tl.innerHTML = '';
+
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'progress-empty';
+      empty.textContent = 'Belum ada catatan progres dari admin.';
+      tl.appendChild(empty);
+    } else {
+      items.forEach(it => {
+        const item = document.createElement('div');
+        item.className = 'progress-item';
+
+        const meta = document.createElement('div');
+        meta.className = 'progress-meta';
+        meta.textContent = it.at + ' · ' + it.by + ' (' + it.role + ')';
+
+        const note = document.createElement('div');
+        note.className = 'progress-note';
+        note.textContent = it.catatan;
+
+        item.appendChild(meta);
+        item.appendChild(note);
+        tl.appendChild(item);
+      });
+    }
+
+    document.getElementById('progressModal').classList.add('is-open');
+  }
+
+  function closeProgressModal() {
+    document.getElementById('progressModal').classList.remove('is-open');
   }
 </script>
 

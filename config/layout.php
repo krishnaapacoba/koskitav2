@@ -5,8 +5,7 @@ function page_head(string $title, string $bodyClass = ''): void { ?>
 <title><?= e($title) ?> · KosKita</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>"></head>
-<link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>?v=2"></head>
+<link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>?v=5"></head>
 <body class="<?= e($bodyClass) ?>">
 <?php }
 function page_foot(): void { echo '<script src="' . e(url('assets/js/app.js')) . '"></script></body></html>'; }
@@ -57,8 +56,9 @@ function app_start(string $role, string $active, string $title, string $sub = ''
     <?php if ($role === 'SUPERADMIN'): ?><div class="role-label">Superadmin</div><?php elseif ($role === 'ADMIN'): ?><div class="role-label">Admin Site</div><?php endif; ?>
     <nav>
       <?php foreach ($menus[$role] as $k => [$label, $href]): ?><a href="<?= e(url($href)) ?>" class="<?= $k === $active ? 'active' : '' ?>"><?= e($label) ?></a><?php endforeach; ?>
-      <a href="<?= e(url('logout.php')) ?>">Keluar</a>
-    </nav></aside>
+    </nav>
+    <a class="sidebar-logout" href="<?= e(url('logout.php')) ?>">Keluar</a>
+  </aside>
   <main class="app-main">
     <h1><?= e($title) ?></h1><?php if ($sub): ?><p class="sub"><?= e($sub) ?></p><?php endif; ?>
     <?= flash_html() ?>
