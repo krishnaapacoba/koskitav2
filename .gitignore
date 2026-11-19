@@ -1,1 +1,32 @@
-config\config.php
+# Configuration & Environment
+config/config.php
+.env
+.env.*
+
+# Database dumps
+*.sql
+*.sql.gz
+*.sqlite
+*.db
+
+# Logs & temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+logs/
+tmp/
+temp/
+
+# Dependencies
+vendor/
+node_modules/
+
+# OS & IDE files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.sublime-*
