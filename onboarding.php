@@ -4,38 +4,83 @@ require_once __DIR__ . '/config/layout.php';
 $u = checkRole(['USER']); $db = db();
 if ($u['user_status'] === 'TENANT') redirect('tenant/dashboard.php');
 if ($u['user_status'] === 'PAYMENT_PENDING') redirect('first_payment.php');
-if (!$u['id_room']) { flash('info', 'Pilih kamar terlebih dahulu.'); redirect('index.php#kamar'); }
+
 $id = (int)$u['id_user'];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u['user_status'] === 'GUEST') {
+// Ambil kategori kos dari kamar yang dipesan (untuk memastikan cek kategori KELUARGA akurat)
+$roomCat = $u['kategori'] ?? '';
+if (!empty($u['id_room']) && $roomCat === '') {
+    $stCat = $db->prepare('SELECT k.kategori FROM rooms r JOIN kosan k ON k.id_kosan=r.id_kosan WHERE r.id_room=?');
+    $stCat->execute([$u['id_room']]);
+    $roomCat = (string)$stCat->fetchColumn();
+}
+
+$isKeluarga = ($roomCat === 'KELUARGA');
+$requiredDocs = $isKeluarga ? ['KTP', 'KK', 'BUKU_NIKAH'] : ['KTP'];
+
+// Ambil riwayat berkas user
+$docs = $db->prepare('SELECT * FROM user_documents WHERE id_user=? ORDER BY id_document');
+$docs->execute([$id]);
+$docs = $docs->fetchAll();
+$rejected = array_values(array_filter($docs, fn($d) => $d['status'] === 'REJECTED'));
+
+if (!$u['id_room'] && !$rejected) {
+    flash('info', 'Pilih kamar terlebih dahulu.');
+    redirect('index.php#kamar');
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u['user_status'] === 'GUEST' && !empty($u['id_room'])) {
     csrf_check();
     if (($_POST['action'] ?? '') === 'cancel') {
         $db->beginTransaction();
-        $docs = $db->prepare('SELECT file_path FROM user_documents WHERE id_user=?'); $docs->execute([$id]);
-        foreach ($docs->fetchAll(PDO::FETCH_COLUMN) as $f) deleteFile($f);
+        $docsDel = $db->prepare('SELECT file_path FROM user_documents WHERE id_user=?'); $docsDel->execute([$id]);
+        foreach ($docsDel->fetchAll(PDO::FETCH_COLUMN) as $f) deleteFile($f);
         $db->prepare('DELETE FROM user_documents WHERE id_user=?')->execute([$id]);
         $db->prepare("UPDATE rooms SET status_kamar='AVAILABLE' WHERE id_room=?")->execute([$u['id_room']]);
         $db->prepare('UPDATE users SET id_room=NULL WHERE id_user=?')->execute([$id]);
         $db->commit();
         flash('success', 'Pesanan dibatalkan.'); redirect('index.php#kamar');
     }
-    $hasKtp = $db->prepare("SELECT 1 FROM user_documents WHERE id_user=? AND document_type='KTP' AND status<>'REJECTED'");
-    $hasKtp->execute([$id]);
+
+    // Cek berkas aktif yang sudah tersimpan sebelumnya (tidak ditolak)
+    $existingStmt = $db->prepare("SELECT document_type FROM user_documents WHERE id_user=? AND status<>'REJECTED'");
+    $existingStmt->execute([$id]);
+    $existingDocs = $existingStmt->fetchAll(PDO::FETCH_COLUMN);
+
     $saved = []; $err = null;
     try {
         foreach (array_keys(DOC_LABEL) as $t) {
             $f = normalizeFiles('doc_' . $t);
             if ($f) $saved[$t] = saveUpload($f[0], 'documents', ['jpg', 'png', 'webp', 'pdf']);
         }
-        if (!$saved) throw new RuntimeException('Unggah minimal satu berkas identitas.');
-        if (!isset($saved['KTP']) && !$hasKtp->fetchColumn()) throw new RuntimeException('KTP wajib dilampirkan.');
-    } catch (RuntimeException $ex) { $err = $ex->getMessage(); foreach ($saved as $p) deleteFile($p); }
+        if (!$saved) throw new RuntimeException('Unggah berkas identitas yang diperlukan.');
+
+        // Validasi dokumen wajib sesuai kategori kos
+        $missing = [];
+        foreach ($requiredDocs as $reqType) {
+            if (!isset($saved[$reqType]) && !in_array($reqType, $existingDocs, true)) {
+                $missing[] = DOC_LABEL[$reqType] ?? $reqType;
+            }
+        }
+        if ($missing) {
+            $prefix = $isKeluarga ? 'Untuk kategori kos Keluarga, berkas berikut wajib dilampirkan: ' : 'Berkas berikut wajib dilampirkan: ';
+            throw new RuntimeException($prefix . implode(', ', $missing) . '.');
+        }
+    } catch (RuntimeException $ex) {
+        $err = $ex->getMessage();
+        foreach ($saved as $p) deleteFile($p);
+    }
+
     if ($err) { flash('error', $err); redirect('onboarding.php'); }
+
     $db->beginTransaction();
     foreach ($saved as $t => $path) {
         $old = $db->prepare("SELECT id_document,file_path FROM user_documents WHERE id_user=? AND document_type=CAST(? AS doc_type_enum) AND status='REJECTED'");
         $old->execute([$id, $t]);
-        foreach ($old->fetchAll() as $o) { deleteFile($o['file_path']); $db->prepare('DELETE FROM user_documents WHERE id_document=?')->execute([$o['id_document']]); }
+        foreach ($old->fetchAll() as $o) {
+            deleteFile($o['file_path']);
+            $db->prepare('DELETE FROM user_documents WHERE id_document=?')->execute([$o['id_document']]);
+        }
         $db->prepare('INSERT INTO user_documents(id_user,document_type,file_path) VALUES (?,CAST(? AS doc_type_enum),?)')->execute([$id, $t, $path]);
     }
     $db->prepare("UPDATE users SET user_status='PENDING_VERIFICATION' WHERE id_user=?")->execute([$id]);
@@ -44,8 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u['user_status'] === 'GUEST') {
     redirect('onboarding.php');
 }
 
-$docs = $db->prepare('SELECT * FROM user_documents WHERE id_user=? ORDER BY id_document'); $docs->execute([$id]); $docs = $docs->fetchAll();
-$rejected = array_values(array_filter($docs, fn($d) => $d['status'] === 'REJECTED'));
 $uploadedTypes = [];
 foreach ($docs as $d) {
     if ($d['status'] !== 'REJECTED') $uploadedTypes[$d['document_type']] = $d['status'];
@@ -140,30 +183,6 @@ public_header('Berkas identitas');
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-  }
-
-  /* Ikon Profil Bulat di Sisi Kiri Nama User */
-  header nav .badge::before,
-  .topbar nav .badge::before,
-  .nav-links .badge::before {
-    content: "";
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background-color: var(--teal);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E");
-    background-size: 13px 13px;
-    background-repeat: no-repeat;
-    background-position: center;
-    flex-shrink: 0;
-  }
-
-  header nav .badge:hover,
-  .topbar nav .badge:hover,
-  .nav-links .badge:hover {
-    background: #fff !important;
-    border-color: var(--teal) !important;
-    box-shadow: 0 3px 10px rgba(125, 150, 120, .18);
   }
 
   /* Tombol Keluar */
@@ -274,117 +293,127 @@ public_header('Berkas identitas');
     </p>
   </div>
 
-  <!-- Stepper Progres (Tanpa Angka Ganda) -->
-  <div class="ob-steps">
-    <div class="ob-step done">
-      <span class="ob-step-num">&#10003;</span>
-      <span>Pilih Unit Kamar</span>
-    </div>
-    <div class="ob-step active">
-      <span class="ob-step-num">2</span>
-      <span><?= $isPending ? 'Verifikasi Berkas' : 'Unggah Berkas' ?></span>
-    </div>
-    <div class="ob-step">
-      <span class="ob-step-num">3</span>
-      <span>Pembayaran Pertama</span>
-    </div>
-  </div>
-
-  <!-- Kartu Kamar Dipesan -->
-  <div class="ob-room-card">
-    <div class="row-between">
-      <span class="small muted" style="font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Unit Kamar Dipesan</span>
-      <?= statusBadge('room', $u['status_kamar']) ?>
-    </div>
-    <div style="font-size: 1.45rem; font-weight: 800; color: var(--ink); margin-top: .3rem;">
-      <?= e($u['nama_kos']) ?> <span style="color:var(--teal)">· Kamar <?= e($u['nomor_kamar']) ?></span>
-    </div>
-    <div class="ob-room-meta">
-      <div class="small muted">Status unit ditahan sementara khusus untuk pesanan Anda</div>
-      <div class="price" style="color:var(--teal-d)"><?= rupiah($u['harga_per_bulan']) ?> <small>/bulan</small></div>
-    </div>
-  </div>
-
-  <?php if ($isPending): ?>
-    <div class="verify-wait-box">
-      <h3>Berkas Sedang Diverifikasi Pengelola</h3>
-      <p class="small muted" style="margin:0; line-height:1.55;">
-        Terima kasih telah melampirkan berkas identitas. Pengelola kos sedang memeriksa dokumen Anda dan akan mengirimkan notifikasi ke email <b><?= e($u['email']) ?></b> setelah disetujui.
+  <?php if (!$u['id_room']): ?>
+    <div class="flash flash-error" style="border-radius:18px; padding:1.4rem 1.65rem; margin-bottom:1.35rem;">
+      <h3 style="margin:0 0 .4rem; font-size:1.05rem;">Pengajuan Sebelumnya Ditolak Pengelola</h3>
+      <p class="small" style="margin:0 0 .65rem;">
+        Kamar yang Anda pesan sebelumnya telah dilepas kembali karena berkas identitas tidak sesuai:
       </p>
+      <?php foreach ($rejected as $d): ?>
+        <div class="small">• <b><?= e(DOC_LABEL[$d['document_type']]) ?></b>: <?= e($d['catatan'] ?: 'Tidak sesuai') ?></div>
+      <?php endforeach; ?>
+      <div style="margin-top:1rem;">
+        <a href="<?= e(url('index.php#kamar')) ?>" class="btn">Pilih Kamar &amp; Ajukan Ulang</a>
+      </div>
     </div>
   <?php else: ?>
+    <!-- Stepper Progres -->
+    <div class="ob-steps">
+      <div class="ob-step done">
+        <span class="ob-step-num">&#10003;</span>
+        <span>Pilih Unit Kamar</span>
+      </div>
+      <div class="ob-step active">
+        <span class="ob-step-num">2</span>
+        <span><?= $isPending ? 'Verifikasi Berkas' : 'Unggah Berkas' ?></span>
+      </div>
+      <div class="ob-step">
+        <span class="ob-step-num">3</span>
+        <span>Pembayaran Pertama</span>
+      </div>
+    </div>
 
-    <?php if ($rejected): ?>
-      <div class="flash flash-error" style="border-radius:16px; padding:1.1rem 1.35rem; margin-bottom:1.25rem;">
-        <b style="display:block; margin-bottom:.3rem;">Berkas sebelumnya perlu diperbaiki:</b>
-        <?php foreach ($rejected as $d): ?>
-          <div class="small">• <b><?= e(DOC_LABEL[$d['document_type']]) ?></b>: <?= e($d['catatan'] ?: 'Tanpa keterangan') ?></div>
-        <?php endforeach; ?>
-        <div class="small" style="margin-top:.4rem;">Silakan unggah ulang berkas yang sesuai di bawah ini.</div>
+    <!-- Kartu Kamar Dipesan -->
+    <div class="ob-room-card">
+      <div class="row-between">
+        <span class="small muted" style="font-weight:600; text-transform:uppercase; letter-spacing:.04em;">
+          Unit Kamar Dipesan <?= $roomCat ? '· Kategori ' . e(kategoriLabel($roomCat)) : '' ?>
+        </span>
+        <?= statusBadge('room', $u['status_kamar']) ?>
+      </div>
+      <div style="font-size: 1.45rem; font-weight: 800; color: var(--ink); margin-top: .3rem;">
+        <?= e($u['nama_kos']) ?> <span style="color:var(--teal)">· Kamar <?= e($u['nomor_kamar']) ?></span>
+      </div>
+      <div class="ob-room-meta">
+        <div class="small muted">Status unit ditahan sementara khusus untuk pesanan Anda</div>
+        <div class="price" style="color:var(--teal-d)"><?= rupiah($u['harga_per_bulan']) ?> <small>/bulan</small></div>
+      </div>
+    </div>
+
+    <?php if ($isPending): ?>
+      <div class="verify-wait-box">
+        <h3>Berkas Sedang Diverifikasi Pengelola</h3>
+        <p class="small muted" style="margin:0; line-height:1.55;">
+          Terima kasih telah melampirkan berkas identitas. Pengelola kos sedang memeriksa dokumen Anda dan akan mengirimkan notifikasi ke email <b><?= e($u['email']) ?></b> setelah disetujui.
+        </p>
+      </div>
+    <?php else: ?>
+      <!-- Form Unggah Berkas -->
+      <form class="card" style="padding:1.75rem 1.85rem; border-radius:20px;" method="post" enctype="multipart/form-data">
+        <?= csrf_field() ?>
+        <h3 style="margin-bottom:.25rem">Lampirkan berkas identitas</h3>
+        <p class="muted small" style="margin:0">
+          Format JPG, PNG, WEBP, atau PDF, maksimal 5 MB per file.
+          <?= $isKeluarga ? '<b>Untuk kos kategori Keluarga, KTP, Kartu Keluarga (KK), dan Buku Nikah wajib dilampirkan.</b>' : '' ?>
+        </p>
+
+        <div class="doc-grid">
+          <?php foreach (DOC_LABEL as $t => $l):
+            $alreadyUploaded = isset($uploadedTypes[$t]);
+            $isRequired = in_array($t, $requiredDocs, true);
+          ?>
+            <label class="doc-drop <?= $alreadyUploaded ? 'has-file' : '' ?>" id="drop-<?= $t ?>">
+              <div class="doc-drop-top">
+                <span class="doc-drop-title"><?= e($l) ?></span>
+                <?php if ($alreadyUploaded): ?>
+                  <?= badge('Tersimpan', 'teal') ?>
+                <?php elseif ($isRequired): ?>
+                  <?= badge('Wajib', 'amber') ?>
+                <?php else: ?>
+                  <?= badge('Opsional', 'gray') ?>
+                <?php endif; ?>
+              </div>
+
+              <div class="doc-drop-body">
+                <div class="doc-ico">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                  </svg>
+                </div>
+                <div class="doc-file-info">
+                  <span class="doc-file-name" id="fname-<?= $t ?>">
+                    <?= $alreadyUploaded ? 'Berkas sudah terlampir' : 'Pilih file ' . e($l) ?>
+                  </span>
+                  <span class="doc-file-hint" id="fhint-<?= $t ?>">
+                    <?= $alreadyUploaded ? 'Klik jika ingin mengganti file' : 'Klik untuk memilih dokumen' ?>
+                  </span>
+                </div>
+              </div>
+
+              <input type="file" name="doc_<?= $t ?>" accept="image/*,application/pdf" onchange="onDocSelected(this, '<?= $t ?>')">
+            </label>
+          <?php endforeach; ?>
+        </div>
+
+        <div class="row-between" style="padding-top:1.1rem; border-top:1px solid var(--line);">
+          <span class="small muted">Pastikan foto berkas terlihat jelas &amp; tidak buram</span>
+          <button class="btn" type="submit">Kirim Berkas Identitas</button>
+        </div>
+      </form>
+
+      <!-- Tombol Batalkan Pesanan -->
+      <div class="row-between" style="padding: .65rem .25rem 1.25rem;">
+        <span class="small muted">Ingin mengganti unit kamar lain?</span>
+        <form method="post" class="inline" data-confirm="Batalkan pesanan dan lepas kamar ini?">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="cancel">
+          <button class="btn btn-red btn-sm" type="submit">Batalkan Pesanan</button>
+        </form>
       </div>
     <?php endif; ?>
-
-    <!-- Form Unggah Berkas -->
-    <form class="card" style="padding:1.75rem 1.85rem; border-radius:20px;" method="post" enctype="multipart/form-data">
-      <?= csrf_field() ?>
-      <h3 style="margin-bottom:.25rem">Lampirkan berkas identitas</h3>
-      <p class="muted small" style="margin:0">Format JPG, PNG, WEBP, atau PDF, maksimal 5 MB per file.</p>
-
-      <div class="doc-grid">
-        <?php foreach (DOC_LABEL as $t => $l):
-          $alreadyUploaded = isset($uploadedTypes[$t]);
-        ?>
-          <label class="doc-drop <?= $alreadyUploaded ? 'has-file' : '' ?>" id="drop-<?= $t ?>">
-            <div class="doc-drop-top">
-              <span class="doc-drop-title"><?= e($l) ?></span>
-              <?php if ($alreadyUploaded): ?>
-                <?= badge('Tersimpan', 'teal') ?>
-              <?php elseif ($t === 'KTP'): ?>
-                <?= badge('Wajib', 'amber') ?>
-              <?php else: ?>
-                <?= badge('Opsional', 'gray') ?>
-              <?php endif; ?>
-            </div>
-
-            <div class="doc-drop-body">
-              <div class="doc-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="12" y1="18" x2="12" y2="12"></line>
-                  <line x1="9" y1="15" x2="15" y2="15"></line>
-                </svg>
-              </div>
-              <div class="doc-file-info">
-                <span class="doc-file-name" id="fname-<?= $t ?>">
-                  <?= $alreadyUploaded ? 'Berkas sudah terlampir' : 'Pilih file ' . e($l) ?>
-                </span>
-                <span class="doc-file-hint" id="fhint-<?= $t ?>">
-                  <?= $alreadyUploaded ? 'Klik jika ingin mengganti file' : 'Klik untuk memilih dokumen' ?>
-                </span>
-              </div>
-            </div>
-
-            <input type="file" name="doc_<?= $t ?>" accept="image/*,application/pdf" onchange="onDocSelected(this, '<?= $t ?>')">
-          </label>
-        <?php endforeach; ?>
-      </div>
-
-      <div class="row-between" style="padding-top:1.1rem; border-top:1px solid var(--line);">
-        <span class="small muted">Pastikan foto berkas terlihat jelas &amp; tidak buram</span>
-        <button class="btn" type="submit">Kirim Berkas Identitas</button>
-      </div>
-    </form>
-
-    <!-- Tombol Batalkan Pesanan -->
-    <div class="row-between" style="padding: .65rem .25rem 1.25rem;">
-      <span class="small muted">Ingin mengganti unit kamar lain?</span>
-      <form method="post" class="inline" data-confirm="Batalkan pesanan dan lepas kamar ini?">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="cancel">
-        <button class="btn btn-red btn-sm" type="submit">Batalkan Pesanan</button>
-      </form>
-    </div>
   <?php endif; ?>
 
   <!-- Riwayat Berkas Terunggah -->

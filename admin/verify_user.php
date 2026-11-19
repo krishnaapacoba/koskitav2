@@ -32,14 +32,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($act === 'reject') {
         $note = clean($_POST['catatan'] ?? '');
         if ($note === '') { flash('error', 'Isi alasan penolakan.'); redirect('admin/verify_user.php#u' . $id); }
+        
         $db->beginTransaction();
-        $db->prepare("UPDATE user_documents SET status='REJECTED',catatan=? WHERE id_user=? AND status='PENDING'")->execute([$note, $id]);
-        $db->prepare("UPDATE users SET user_status='GUEST' WHERE id_user=?")->execute([$id]);
+        // 1. Tandai dokumen ditolak beserta alasannya
+        $db->prepare("UPDATE user_documents SET status='REJECTED', catatan=? WHERE id_user=? AND status='PENDING'")->execute([$note, $id]);
+        
+        // 2. Kembalikan status kamar menjadi AVAILABLE agar bisa dipesan orang lain
+        $db->prepare("UPDATE rooms SET status_kamar='AVAILABLE' WHERE id_room=?")->execute([$cand['id_room']]);
+        
+        // 3. Kembalikan status user menjadi GUEST dan lepas kamar yang dipesan
+        $db->prepare("UPDATE users SET user_status='GUEST', id_room=NULL WHERE id_user=?")->execute([$id]);
         $db->commit();
-        sendMail($id, $cand['email'], 'Berkas Anda ditolak',
-            '<p>Halo ' . e($cand['nama_lengkap']) . ',</p><p>Mohon maaf, berkas identitas Anda <b>ditolak</b>.</p><p>Alasan: ' . e($note) . '</p><p>Silakan unggah ulang berkas yang sesuai.</p>',
-            ['Unggah ulang berkas', absUrl('onboarding.php')]);
-        flash('success', 'Berkas ditolak. Notifikasi dikirim ke calon penghuni.');
+
+        sendMail($id, $cand['email'], 'Pemesanan & berkas Anda ditolak',
+            '<p>Halo ' . e($cand['nama_lengkap']) . ',</p>'
+            . '<p>Mohon maaf, berkas identitas Anda untuk <b>' . e($cand['nama_kos']) . ' · Kamar ' . e($cand['nomor_kamar']) . '</b> <b>ditolak</b> sehingga kamar dilepas kembali.</p>'
+            . '<p><b>Alasan ketidaksesuaian:</b> ' . e($note) . '</p>'
+            . '<p>Silakan pilih kembali kamar yang tersedia dan pastikan berkas identitas Anda sesuai.</p>',
+            ['Pilih kamar kembali', absUrl('index.php#kamar')]);
+
+        flash('success', 'Berkas ditolak. Kamar telah dikembalikan ke status tersedia (AVAILABLE).');
     }
     redirect($back);
 }
