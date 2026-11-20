@@ -33,6 +33,7 @@ h1{font-size:2rem;font-weight:800;letter-spacing:-.02em;margin:0 0 .3rem}h2{font
 .row-between{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
 .field{display:block;font-weight:600;font-size:.88rem;margin-bottom:1rem}
 input[type=text],input[type=email],input[type=password],input[type=number],select,textarea{display:block;width:100%;margin-top:.35rem;padding:.7rem .9rem;border:1.5px solid var(--input-border);border-radius:12px;background:var(--input-bg);font:400 .95rem Inter,sans-serif;color:var(--ink)}
+select{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding-right:2.4rem;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236b7280' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .85rem center;background-size:.72rem;cursor:pointer}
 input[type=file]{display:block;margin-top:.35rem;font:400 .9rem Inter,sans-serif;max-width:100%}
 textarea{min-height:90px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
@@ -150,7 +151,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
 :root[data-theme=dark] .filter-box{background:var(--surface);border-color:var(--line)}
 :root[data-theme=dark] .filter-top-grid{border-bottom-color:var(--line)}
 :root[data-theme=dark] .filter-top-grid select,
-:root[data-theme=dark] .filter-top-grid input{background:var(--input-bg)}
+:root[data-theme=dark] .filter-top-grid input{background-color:var(--input-bg)}
 :root[data-theme=dark] .fac-check-item{border-color:var(--input-border);background:var(--surface-2)}
 :root[data-theme=dark] .fac-check-item:hover{border-color:var(--teal);background:var(--hover)}
 :root[data-theme=dark] .fac-check-item input[type=checkbox]{border-color:var(--input-border);background:var(--input-bg)}
@@ -216,7 +217,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
 :root[data-theme=dark] .adm-latest p{color:var(--muted)}
 :root[data-theme=dark] .adm-latest{background:var(--surface-2);border-color:var(--line)}
 :root[data-theme=dark] .adm-foot{border-top-color:var(--line)}
-:root[data-theme=dark] .adm-status-form select{background:var(--input-bg)}
+:root[data-theme=dark] .adm-status-form select{background-color:var(--input-bg)}
 :root[data-theme=dark] .progress-item{background:var(--surface-2)}
 :root[data-theme=dark] .progress-form textarea{background:var(--input-bg)}
 
@@ -242,4 +243,31 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
 :root[data-theme=dark] .ticket-foot{border-top-color:var(--line)}
 :root[data-theme=dark] .tk-fac-section{background:var(--surface-2);border-color:var(--line)}
 :root[data-theme=dark] .proof-modal-box{background:var(--surface)}
+
+/* ---------- Dark mode contrast fixes (solid teal accents, hover & disabled states) ---------- */
+/* In dark mode --teal is light, so white text/icons on teal become unreadable. */
+:root[data-theme=dark] .user-chip-avatar,
+:root[data-theme=dark] .ob-step.active .ob-step-num,
+:root[data-theme=dark] .doc-drop.has-file .doc-ico{color:#04231e}
+:root[data-theme=dark] .fac-check-item input[type=checkbox]:checked::before,
+:root[data-theme=dark] .fac-option input[type=checkbox]:checked::before{box-shadow:inset 1em 1em #04231e}
+:root[data-theme=dark] header nav .badge::before,
+:root[data-theme=dark] .topbar nav .badge::before,
+:root[data-theme=dark] .nav-links .badge::before{background-color:#0f766e}
+/* Disabled buttons were white text on a light gray background (invisible). */
+:root[data-theme=dark] .btn[disabled],
+:root[data-theme=dark] .btn.disabled{background:var(--surface-3);border-color:var(--surface-3);color:var(--muted)}
+/* Outline & red buttons keep dark backgrounds in dark mode, so the generic
+   .btn:hover colour must not make their labels dark/invisible. */
+:root[data-theme=dark] .btn-outline:hover,
+:root[data-theme=dark] .btn-outline:focus-visible{color:var(--teal);background:var(--soft);border-color:var(--teal)}
+:root[data-theme=dark] .btn-red:hover,
+:root[data-theme=dark] .btn-red:focus-visible{color:var(--red);background:var(--red-bg);border-color:var(--red-bg)}
+:root[data-theme=dark] .btn[disabled]:hover,
+:root[data-theme=dark] .btn.disabled:hover{color:var(--muted);background:var(--surface-3);border-color:var(--surface-3)}
+/* Keep hover borders and remaining light borders on-theme. */
+:root[data-theme=dark] .fac-check-item:hover{border-color:var(--teal);background:var(--hover)}
+:root[data-theme=dark] .proof-modal-grid a{border-color:var(--line)}
+:root[data-theme=dark] .tk-tabs button:hover,
+:root[data-theme=dark] .sk-filter button:hover{color:var(--ink)}
 

@@ -300,9 +300,9 @@ app_start('ADMIN', 'tickets', 'Tiket Pengaduan', 'Pantau dan perbarui progres la
   }
   .adm-status-form select {
     margin-top: 0;
-    padding: .42rem .6rem;
+    padding: .42rem 2rem .42rem .6rem;
     font-size: .84rem;
-    background: #FAF9F5;
+    background-color: #FAF9F5;
     border-radius: 10px;
     min-width: 140px;
     width: auto;

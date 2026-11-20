@@ -242,7 +242,7 @@ public_header('Temukan kamar kos');
   }
   .filter-top-grid .field { margin: 0; }
   .filter-top-grid select,
-  .filter-top-grid input { background: #FAF9F5; }
+  .filter-top-grid input { background-color: #FAF9F5; }
 
   .filter-sub-lbl { display: block; font-size: .85rem; font-weight: 700; color: var(--ink); margin-bottom: .6rem; }
   .filter-sub-lbl span { font-weight: 400; color: var(--muted); font-size: .8rem; margin-left: .35rem; }
