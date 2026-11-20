@@ -382,7 +382,7 @@ app_start('ADMIN', 'dashboard', 'Admin · ' . ($names ? implode(', ', $names) : 
                 <?php if ($tkFacs) { ?>
                   <div style="display:flex; flex-wrap:wrap; gap:.3rem;">
                     <?php foreach ($tkFacs as $fc) { ?>
-                      <span style="background:#EEF4ED; color:#3F5141; font-size:.73rem; font-weight:600; padding:.14rem .55rem; border-radius:999px;"><?= e($fc) ?></span>
+                      <span style="background:var(--tag-bg); color:var(--tag-ink); font-size:.73rem; font-weight:600; padding:.14rem .55rem; border-radius:999px;"><?= e($fc) ?></span>
                     <?php } ?>
                   </div>
                 <?php } ?>

@@ -178,7 +178,7 @@ app_start('ADMIN', 'payment', 'Pembayaran', 'Kelola QRIS dan verifikasi pembayar
   </div>
 
   <?php if (!$pending): ?>
-    <div style="text-align:center; padding: 1.75rem 1rem; background:#faf9f6; border-radius:14px; border:1px dashed var(--line);">
+    <div style="text-align:center; padding: 1.75rem 1rem; background:var(--surface-2); border-radius:14px; border:1px dashed var(--line);">
       <div style="font-weight:700; color:var(--ink); margin-bottom:.25rem">Semua pembayaran sudah diproses</div>
       <div class="small muted">Tidak ada antrean pembayaran yang menunggu verifikasi saat ini.</div>
     </div>

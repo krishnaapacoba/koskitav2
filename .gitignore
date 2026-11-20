@@ -19,6 +19,13 @@ logs/
 tmp/
 temp/
 
+# Uploaded user files (documents, payments, tickets, QRIS, room photos)
+# Keep the folder structure and protective .htaccess / .gitkeep files.
+uploads/**
+!uploads/**/
+!uploads/**/.htaccess
+!uploads/**/.gitkeep
+
 # Dependencies
 vendor/
 node_modules/

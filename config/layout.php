@@ -5,10 +5,15 @@ function page_head(string $title, string $bodyClass = ''): void { ?>
 <title><?= e($title) ?> · KosKita</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>?v=5"></head>
+<script>(function(){function setTheme(t){document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('koskita-theme',t);}catch(e){}}try{var t=localStorage.getItem('koskita-theme');if(t!=='dark'&&t!=='light'){t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}setTheme(t);}catch(e){}window.koskitaToggleTheme=function(){var cur=document.documentElement.getAttribute('data-theme');setTheme(cur==='dark'?'light':'dark');};})();</script>
+<link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>?v=7"></head>
 <body class="<?= e($bodyClass) ?>">
+<button class="theme-toggle" type="button" data-theme-toggle onclick="window.koskitaToggleTheme&&window.koskitaToggleTheme()" aria-label="Ganti mode gelap atau terang" title="Ganti mode gelap atau terang">
+<span class="theme-toggle-ico" aria-hidden="true"><svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+<span class="theme-toggle-label"><span class="lbl-dark">Mode gelap</span><span class="lbl-light">Mode terang</span></span>
+</button>
 <?php }
-function page_foot(): void { echo '<script src="' . e(url('assets/js/app.js')) . '"></script></body></html>'; }
+function page_foot(): void { echo '<script src="' . e(url('assets/js/app.js')) . '?v=7"></script></body></html>'; }
 
 // ---------- Header publik (landing, booking, onboarding, pembayaran pertama) ----------
 function public_header(string $title): void {
