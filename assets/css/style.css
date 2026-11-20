@@ -12,6 +12,9 @@ h1{font-size:2rem;font-weight:800;letter-spacing:-.02em;margin:0 0 .3rem}h2{font
 .muted{color:var(--muted)}.small{font-size:.85rem}.right{text-align:right}.link{color:var(--teal);font-weight:600}.link:hover{text-decoration:underline}
 .sub{color:var(--muted);margin:0 0 1.25rem}
 :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+/* Show the focus ring on the whole facility chip, not just the tiny box. */
+.fac-check-item:has(input:focus-visible),
+.fac-option:has(input:focus-visible){outline:2px solid var(--teal);outline-offset:2px}
 
 /* buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.65rem 1.25rem;border-radius:12px;border:1.5px solid var(--teal);background:var(--teal);color:#fff;font:600 .95rem Inter,sans-serif;cursor:pointer;transition:background .15s}
@@ -249,8 +252,20 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal)}
 :root[data-theme=dark] .user-chip-avatar,
 :root[data-theme=dark] .ob-step.active .ob-step-num,
 :root[data-theme=dark] .doc-drop.has-file .doc-ico{color:#04231e}
+/* The generic dark checkbox rule above has higher specificity than each page's
+   :checked rule, so a selected box kept the dark input background while its tick
+   was switched to dark (#04231e) — i.e. an invisible tick. Restore the teal
+   checked state explicitly in dark mode. */
+:root[data-theme=dark] .fac-check-item input[type=checkbox]:checked,
+:root[data-theme=dark] .fac-option input[type=checkbox]:checked{background:var(--teal);border-color:var(--teal)}
 :root[data-theme=dark] .fac-check-item input[type=checkbox]:checked::before,
 :root[data-theme=dark] .fac-option input[type=checkbox]:checked::before{box-shadow:inset 1em 1em #04231e}
+/* Keep the whole selected chip highlighted on hover instead of falling back to
+   the neutral hover background. */
+:root[data-theme=dark] .fac-check-item:has(input:checked),
+:root[data-theme=dark] .fac-check-item:has(input:checked):hover,
+:root[data-theme=dark] .fac-option:has(input:checked),
+:root[data-theme=dark] .fac-option:has(input:checked):hover{background:var(--soft);border-color:var(--teal);color:var(--teal-d)}
 :root[data-theme=dark] header nav .badge::before,
 :root[data-theme=dark] .topbar nav .badge::before,
 :root[data-theme=dark] .nav-links .badge::before{background-color:#0f766e}
